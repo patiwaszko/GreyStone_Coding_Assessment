@@ -28,9 +28,19 @@ class LoanResponse(BaseModel):
     status: str
     owner_id: int
 
+class LoanScheduleResponse(BaseModel):
+    month: int
+    open_balance: float
+    total_payment: float
+    principal_payment: float
+    interest_payment: float
+    close_balance: float
+
 # Simulated in-memory database
 users_db = []
 loans_db = []
+user_id_map = {}
+loan_id_map = {}
 user_id_counter = 1
 loan_id_counter = 1
 existing_usernames = set()
@@ -47,10 +57,12 @@ def create_user(user_create: UserCreate):
     user_id = user_id_counter
     user_response = UserResponse(id=user_id, username=user_create.username)
 
-    user_id_counter += 1
-
     users_db.append(user_response)
+    user_id_map[user_id] = user_response
+
     existing_usernames.add(user_create.username)
+    
+    user_id_counter += 1
 
     return user_response
 
@@ -60,7 +72,7 @@ def list_users():
 
 @app.get("/users/{user_id}/loans", response_model=List[LoanResponse])
 def get_user_loans(user_id: int):
-    if user_id <= 0 or user_id < len(users_db):
+    if user_id <= 0 or user_id > len(users_db):
         raise HTTPException(status_code=404, detail="User not found")
 
     user_loans = [loan for loan in loans_db if loan.owner_id == user_id]
@@ -87,7 +99,9 @@ def create_loan(loan_create: LoanCreate):
 
     loan_id = loan_id_counter
     loan_response = LoanResponse(id=loan_id, **loan_create.model_dump())
+    
     loans_db.append(loan_response)
+    loan_id_map[loan_id] = loan_response
 
     loan_id_counter += 1
 
@@ -97,3 +111,23 @@ def create_loan(loan_create: LoanCreate):
 def list_loans():
     return loans_db
 
+# Placeholder function for calculating loan schedule (replace with actual implementation)
+def calculate_loan_schedule(loan_id, user_id):
+    # This function should calculate and return the loan schedule based on the loan_id and user_id
+    # Replace this with your actual implementation
+    pass
+
+@app.get("/loans/{loan_id}", response_model=List[LoanScheduleResponse])
+def get_loan_schedule(loan_id: int, user_id: int):
+    loan = loan_id_map.get(loan_id)
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+
+    # Check if the user has access to the loan
+    if loan.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="User does not have access to this loan")
+
+    # Placeholder function to calculate loan schedule (replace with actual implementation)
+    loan_schedule = calculate_loan_schedule(loan_id, user_id)
+
+    return loan_schedule
