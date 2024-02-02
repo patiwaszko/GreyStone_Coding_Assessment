@@ -112,10 +112,42 @@ def list_loans():
     return loans_db.values()
 
 # Placeholder function for calculating loan schedule (replace with actual implementation)
-def calculate_loan_schedule(loan_id, user_id):
+def calculate_loan_schedule(loan):
     # This function should calculate and return the loan schedule based on the loan_id and user_id
     # Replace this with your actual implementation
-    pass
+    amount = loan.amount
+    apr = loan.apr
+    term = loan.term
+    
+    monthly_interest_rate = apr / 12 / 100
+
+    monthly_payment = (
+        amount
+        * monthly_interest_rate
+        * (1 + monthly_interest_rate) ** term
+    ) / ((1 + monthly_interest_rate) ** term - 1)
+
+    remaining_balance = amount
+    loan_schedule = []
+
+    for month in range(1, term + 1):
+        interest_payment = remaining_balance * monthly_interest_rate
+        principal_payment = monthly_payment - interest_payment
+        remaining_balance -= principal_payment
+
+        loan_schedule.append(
+            LoanScheduleResponse(
+                month=month,
+                open_balance=remaining_balance + principal_payment,
+                total_payment=monthly_payment,
+                principal_payment=principal_payment,
+                interest_payment=interest_payment,
+                close_balance=max(0, remaining_balance),
+            )
+        )
+
+    return loan_schedule
+
 
 @app.get("/loans/{loan_id}", response_model=List[LoanScheduleResponse])
 def get_loan_schedule(loan_id: int, user_id: int):
@@ -128,6 +160,6 @@ def get_loan_schedule(loan_id: int, user_id: int):
         raise HTTPException(status_code=403, detail="User does not have access to this loan")
 
     # Placeholder function to calculate loan schedule (replace with actual implementation)
-    loan_schedule = calculate_loan_schedule(loan_id, user_id)
+    loan_schedule = calculate_loan_schedule(loan)
 
     return loan_schedule
