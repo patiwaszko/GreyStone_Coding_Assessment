@@ -1,27 +1,33 @@
 from typing import Union
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import List
 
 app = FastAPI()
 
+class UserCreate(BaseModel):
+    username: str
 
-class Item(BaseModel):
-    name: str
-    price: float
-    is_offer: Union[bool, None] = None
+class UserResponse(BaseModel):
+    username: str
 
+# Simulated in-memory database
+db = []
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+@app.post("/users/", response_model=UserResponse)
+def create_user(user_create: UserCreate):
+    # TODO: DB Read / write
+    
+    existing_user = user_create in db
 
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already exists")
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+    db.append(user_create)
 
+    return user_create
 
-@app.put("/items/{item_id}")
-def update_item(item_id: int, item: Item):
-    return {"item_name": item.name, "item_id": item_id}
+@app.get("/users/", response_model=List[UserResponse])
+def list_users():
+    return db
