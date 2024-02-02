@@ -58,6 +58,14 @@ def create_user(user_create: UserCreate):
 def list_users():
     return users_db
 
+@app.get("/users/{user_id}/loans", response_model=List[LoanResponse])
+def get_user_loans(user_id: int):
+    if user_id <= 0 or user_id < len(users_db):
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_loans = [loan for loan in loans_db if loan.owner_id == user_id]
+    return user_loans
+
 @app.post("/loans/", response_model=LoanResponse)
 def create_loan(loan_create: LoanCreate):
     global loan_id_counter
@@ -88,3 +96,4 @@ def create_loan(loan_create: LoanCreate):
 @app.get("/loans/", response_model=List[UserResponse])
 def list_loans():
     return loans_db
+
