@@ -37,10 +37,9 @@ class LoanScheduleResponse(BaseModel):
     close_balance: float
 
 # Simulated in-memory database
-users_db = []
-loans_db = []
-user_id_map = {}
-loan_id_map = {}
+users_db = {}
+loans_db = {}
+user_loan_db = {}
 user_id_counter = 1
 loan_id_counter = 1
 existing_usernames = set()
@@ -57,8 +56,8 @@ def create_user(user_create: UserCreate):
     user_id = user_id_counter
     user_response = UserResponse(id=user_id, username=user_create.username)
 
-    users_db.append(user_response)
-    user_id_map[user_id] = user_response
+    users_db[user_id] = user_response
+    user_loan_db[user_id] = []
 
     existing_usernames.add(user_create.username)
     
@@ -68,14 +67,14 @@ def create_user(user_create: UserCreate):
 
 @app.get("/users/", response_model=List[UserResponse])
 def list_users():
-    return users_db
+    return users_db.values()
 
 @app.get("/users/{user_id}/loans", response_model=List[LoanResponse])
 def get_user_loans(user_id: int):
     if user_id <= 0 or user_id > len(users_db):
         raise HTTPException(status_code=404, detail="User not found")
 
-    user_loans = [loan for loan in loans_db if loan.owner_id == user_id]
+    user_loans = user_loan_db[user_id]
     return user_loans
 
 @app.post("/loans/", response_model=LoanResponse)
@@ -100,16 +99,17 @@ def create_loan(loan_create: LoanCreate):
     loan_id = loan_id_counter
     loan_response = LoanResponse(id=loan_id, **loan_create.model_dump())
     
-    loans_db.append(loan_response)
-    loan_id_map[loan_id] = loan_response
+    loans_db[loan_id] = loan_response
+    
+    user_loan_db[loan_response.owner_id].append(loan_response)
 
     loan_id_counter += 1
 
     return loan_response
 
-@app.get("/loans/", response_model=List[UserResponse])
+@app.get("/loans/", response_model=List[LoanResponse])
 def list_loans():
-    return loans_db
+    return loans_db.values()
 
 # Placeholder function for calculating loan schedule (replace with actual implementation)
 def calculate_loan_schedule(loan_id, user_id):
@@ -119,7 +119,7 @@ def calculate_loan_schedule(loan_id, user_id):
 
 @app.get("/loans/{loan_id}", response_model=List[LoanScheduleResponse])
 def get_loan_schedule(loan_id: int, user_id: int):
-    loan = loan_id_map.get(loan_id)
+    loan = loans_db.get(loan_id)
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
 
