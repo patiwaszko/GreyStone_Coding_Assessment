@@ -36,6 +36,11 @@ class LoanScheduleResponse(BaseModel):
     interest_payment: float
     close_balance: float
 
+class LoanSummaryResponse(BaseModel):
+    current_principal: float
+    aggregate_principal_paid: float
+    aggregate_interest_paid: float
+
 # Simulated in-memory database
 users_db = {}
 loans_db = {}
@@ -68,14 +73,6 @@ def create_user(user_create: UserCreate):
 @app.get("/users/", response_model=List[UserResponse])
 def list_users():
     return users_db.values()
-
-@app.get("/users/{user_id}/loans", response_model=List[LoanResponse])
-def get_user_loans(user_id: int):
-    if user_id <= 0 or user_id > len(users_db):
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user_loans = user_loan_db[user_id]
-    return user_loans
 
 @app.post("/loans/", response_model=LoanResponse)
 def create_loan(loan_create: LoanCreate):
@@ -145,6 +142,14 @@ def calculate_loan_schedule(loan):
 
     return loan_schedule
 
+@app.get("/users/{user_id}/loans", response_model=List[LoanResponse])
+def get_user_loans(user_id: int):
+    if user_id <= 0 or user_id > len(users_db):
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_loans = user_loan_db[user_id]
+    return user_loans
+
 
 @app.get("/loans/{loan_id}", response_model=List[LoanScheduleResponse])
 def get_loan_schedule(loan_id: int, user_id: int):
@@ -158,3 +163,44 @@ def get_loan_schedule(loan_id: int, user_id: int):
     loan_schedule = calculate_loan_schedule(loan)
 
     return loan_schedule
+
+@app.get("/loans/{loan_id}/summary/{month}", response_model=LoanSummaryResponse)
+def get_loan_summary(loan_id: int, month: int, user_id: int):
+    loan = loans_db.get(loan_id)
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+
+    if loan.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="User does not have access to this loan")
+
+    if month < 1 or month > loan.term:
+        raise HTTPException(status_code=400, detail="Invalid month for loan summary")
+
+    remaining_balance = loan.amount
+    monthly_interest_rate = loan.apr / 12
+    monthly_payment = (
+        remaining_balance
+        * monthly_interest_rate
+        * (1 + monthly_interest_rate) ** loan.term
+    ) / ((1 + monthly_interest_rate) ** loan.term - 1)
+
+    current_principal = remaining_balance
+    aggregate_principal_paid = 0
+    aggregate_interest_paid = 0
+
+    for current_month in range(1, month + 1):
+        interest_payment = remaining_balance * monthly_interest_rate
+        principal_payment = min(monthly_payment - interest_payment, remaining_balance)
+        remaining_balance -= principal_payment
+
+        current_principal = remaining_balance
+        aggregate_principal_paid += principal_payment
+        aggregate_interest_paid += interest_payment
+
+    loan_summary = LoanSummaryResponse(
+        current_principal=current_principal,
+        aggregate_principal_paid=aggregate_principal_paid,
+        aggregate_interest_paid=aggregate_interest_paid,
+    )
+
+    return loan_summary
