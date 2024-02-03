@@ -111,15 +111,12 @@ def create_loan(loan_create: LoanCreate):
 def list_loans():
     return loans_db.values()
 
-# Placeholder function for calculating loan schedule (replace with actual implementation)
 def calculate_loan_schedule(loan):
-    # This function should calculate and return the loan schedule based on the loan_id and user_id
-    # Replace this with your actual implementation
     amount = loan.amount
     apr = loan.apr
     term = loan.term
     
-    monthly_interest_rate = apr / 12 / 100
+    monthly_interest_rate = apr / 12
 
     monthly_payment = (
         amount
@@ -155,11 +152,9 @@ def get_loan_schedule(loan_id: int, user_id: int):
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
 
-    # Check if the user has access to the loan
     if loan.owner_id != user_id:
         raise HTTPException(status_code=403, detail="User does not have access to this loan")
 
-    # Placeholder function to calculate loan schedule (replace with actual implementation)
     loan_schedule = calculate_loan_schedule(loan)
 
     return loan_schedule
