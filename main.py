@@ -1,5 +1,3 @@
-from typing import Union
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
@@ -90,7 +88,7 @@ def create_loan(loan_create: LoanCreate):
     if loan_create.status.lower() not in ['active', 'inactive']:
         raise HTTPException(status_code=400, detail="Loan status must be either active or inactive.")
 
-    if loan_create.owner_id > len(users_db) or loan_create.owner_id <= 0:
+    if loan_create.owner_id <= 0 or loan_create.owner_id > len(users_db):
         raise HTTPException(status_code=400, detail="Invalid owner_id. User does not exist.")
 
     loan_id = loan_id_counter
@@ -157,7 +155,7 @@ def get_loan_schedule(loan_id: int, user_id: int):
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
 
-    if loan.owner_id != user_id:
+    if not loan_exists_for_user(user_id, loan_id):
         raise HTTPException(status_code=403, detail="User does not have access to this loan")
 
     loan_schedule = calculate_loan_schedule(loan)
@@ -170,7 +168,7 @@ def get_loan_summary(loan_id: int, month: int, user_id: int):
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
 
-    if loan.owner_id != user_id:
+    if not loan_exists_for_user(user_id, loan_id):
         raise HTTPException(status_code=403, detail="User does not have access to this loan")
 
     if month < 1 or month > loan.term:
@@ -204,3 +202,29 @@ def get_loan_summary(loan_id: int, month: int, user_id: int):
     )
 
     return loan_summary
+
+def loan_exists_for_user(user_id: int, loan_id: int) -> bool:
+    user_loans = user_loan_db.get(user_id)
+    if user_loans:
+        return any(loan.id == loan_id for loan in user_loans)
+    return False
+
+@app.post("/loans/{loan_id}/share")
+def share_loan(
+    loan_id: int,
+    owner_id: int,
+    user_id: int
+):
+    loan = loans_db.get(loan_id)
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+
+    if loan.owner_id != owner_id:
+        raise HTTPException(status_code=403, detail="User does not have access to share this loan")
+
+    if user_id <= 0 or user_id > len(users_db):
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_loan_db[user_id].append(loan)
+
+    return {"message": f"Loan {loan_id} shared with user {user_id}"}
